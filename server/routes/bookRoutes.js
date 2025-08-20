@@ -8,7 +8,7 @@ router.route('/')
 
 router.route('/:id')
     .get(bookController.getBookById)
-    .put(bookController.updateBook);
-//     .delete(bookController.deleteBook)
+    .put(bookController.updateBook)
+    .delete(bookController.deleteBook);
 
 module.exports = router;
