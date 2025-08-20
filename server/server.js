@@ -1,5 +1,5 @@
 const express = require('express');
-// const postRouter = require('./routes/bookRoutes');
+const bookRouter = require('./routes/bookRoutes');
 const {port, connectDB} = require('./config/db');
 
 connectDB();
@@ -12,7 +12,7 @@ app.get('/', (req, res) => {
     res.send('Hellow World!\n');
 });
 
-// app.use('/api/books', postRouter);
+app.use('/api/books', bookRouter);
 
 app.listen(port, () => {
     console.log(`Server listening on port: ${port}`);
