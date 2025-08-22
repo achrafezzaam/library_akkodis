@@ -10,10 +10,10 @@ const api = axios.create({
 });
 
 export const bookService = {
-  // Get all books
-  getAllBooks: async () => {
+  // Get all books with pagination
+  getAllBooks: async (page = 1, limit = 10) => {
     try {
-      const response = await api.get('/books');
+      const response = await api.get(`/books?page=${page}&limit=${limit}`);
       return response.data;
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Failed to fetch books');

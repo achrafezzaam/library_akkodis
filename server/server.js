@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const bookRouter = require('./routes/bookRoutes');
-const {port, connectDB} = require('./config/db');
-const { logger, errorHandler } = require('./middleware');
+const { port, connectDB } = require('./config/db');
+const { logger, errorHandler, apiLimiter } = require('./middleware');
 
 const allowedOrigins = ["http://localhost:5173"];
 
@@ -11,6 +11,7 @@ connectDB();
 app = express();
 
 app.use(logger);
+app.use(apiLimiter);
 
 app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());

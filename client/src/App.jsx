@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Library, BookOpen, Loader2, AlertCircle } from 'lucide-react';
 import BookCard from './components/BookCard';
 import BookForm from './components/BookForm';
+import Pagination from './components/Pagination';
 import { bookService } from './services/api';
 import './App.css';
 
@@ -12,22 +13,61 @@ function App() {
   const [success, setSuccess] = useState('');
   const [editingBook, setEditingBook] = useState(null);
   const [formLoading, setFormLoading] = useState(false);
+  const [paginationLoading, setPaginationLoading] = useState(false);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalDocs: 0,
+    limit: 10,
+    hasNextPage: false,
+    hasPrevPage: false
+  });
 
   // Fetch books on component mount
   useEffect(() => {
-    fetchBooks();
+    fetchBooks(1, 10, true).then(() => {
+      setInitialLoadComplete(true);
+    });
   }, []);
 
-  const fetchBooks = async () => {
+  // Fetch books when pagination changes (but not on initial load)
+  useEffect(() => {
+    if (initialLoadComplete) {
+      fetchBooks(pagination.currentPage, pagination.limit, false);
+    }
+  }, [pagination.currentPage, pagination.limit, initialLoadComplete]);
+
+  const fetchBooks = async (page = 1, limit = 10, isInitialLoad = false) => {
     try {
-      setLoading(true);
+      if (isInitialLoad) {
+        setLoading(true);
+      } else {
+        setPaginationLoading(true);
+      }
       setError('');
-      const booksData = await bookService.getAllBooks();
-      setBooks(booksData);
+      const booksData = await bookService.getAllBooks(page, limit);
+
+      // Handle pagination response
+      setBooks(booksData.docs || []);
+      setPagination({
+        currentPage: booksData.page || 1,
+        totalPages: booksData.totalPages || 1,
+        totalDocs: booksData.totalDocs || 0,
+        limit: booksData.limit || limit,
+        hasNextPage: booksData.hasNextPage || false,
+        hasPrevPage: booksData.hasPrevPage || false
+      });
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      if (isInitialLoad) {
+        setLoading(false);
+      } else {
+        setPaginationLoading(false);
+      }
     }
   };
 
@@ -35,8 +75,9 @@ function App() {
     try {
       setFormLoading(true);
       setError('');
-      const newBook = await bookService.createBook(bookData);
-      setBooks(prev => [...prev, newBook]);
+      await bookService.createBook(bookData);
+      // Refresh the current page to show the new book
+      await fetchBooks(pagination.currentPage, pagination.limit);
       setSuccess('Book added successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -51,7 +92,7 @@ function App() {
       setFormLoading(true);
       setError('');
       const updatedBook = await bookService.updateBook(editingBook._id, bookData);
-      setBooks(prev => prev.map(book => 
+      setBooks(prev => prev.map(book =>
         book._id === editingBook._id ? updatedBook : book
       ));
       setEditingBook(null);
@@ -72,7 +113,16 @@ function App() {
     try {
       setError('');
       await bookService.deleteBook(bookId);
-      setBooks(prev => prev.filter(book => book._id !== bookId));
+
+      // If this was the last item on the current page and not page 1, go to previous page
+      const remainingItems = books.length - 1;
+      if (remainingItems === 0 && pagination.currentPage > 1) {
+        setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }));
+      } else {
+        // Refresh current page
+        await fetchBooks(pagination.currentPage, pagination.limit);
+      }
+
       setSuccess('Book deleted successfully!');
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
@@ -90,6 +140,18 @@ function App() {
 
   const handleCancelEdit = () => {
     setEditingBook(null);
+  };
+
+  const handlePageChange = (page) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const handleLimitChange = (newLimit) => {
+    setPagination(prev => ({
+      ...prev,
+      limit: newLimit,
+      currentPage: 1 // Reset to first page when changing limit
+    }));
   };
 
   return (
@@ -122,7 +184,7 @@ function App() {
           <div className="books-section">
             <h2 className="section-title">
               <BookOpen size={24} />
-              Book Collection ({books.length})
+              Book Collection ({pagination.totalDocs} total)
             </h2>
 
             {loading ? (
@@ -130,23 +192,40 @@ function App() {
                 <Loader2 size={24} className="animate-spin" />
                 Loading books...
               </div>
-            ) : books.length === 0 ? (
+            ) : !Array.isArray(books) || books.length === 0 ? (
               <div className="empty-state">
                 <BookOpen size={48} className="empty-state-icon" />
                 <h3>No books in your library yet</h3>
                 <p>Start building your collection by adding your first book!</p>
               </div>
             ) : (
-              <div className="books-grid">
-                {books.map(book => (
-                  <BookCard
-                    key={book._id}
-                    book={book}
-                    onEdit={setEditingBook}
-                    onDelete={handleDeleteBook}
-                  />
-                ))}
-              </div>
+              <>
+                <div className={`books-grid ${paginationLoading ? 'loading-overlay' : ''}`}>
+                  {paginationLoading && (
+                    <div className="pagination-loading">
+                      <Loader2 size={24} className="animate-spin" />
+                      Loading...
+                    </div>
+                  )}
+                  {books.map(book => (
+                    <BookCard
+                      key={book._id}
+                      book={book}
+                      onEdit={setEditingBook}
+                      onDelete={handleDeleteBook}
+                    />
+                  ))}
+                </div>
+
+                <Pagination
+                  currentPage={pagination.currentPage}
+                  totalPages={pagination.totalPages}
+                  totalDocs={pagination.totalDocs}
+                  limit={pagination.limit}
+                  onPageChange={handlePageChange}
+                  onLimitChange={handleLimitChange}
+                />
+              </>
             )}
           </div>
 

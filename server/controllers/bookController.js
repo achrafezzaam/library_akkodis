@@ -2,7 +2,12 @@ const Book = require('../models/bookModel');
 const { asyncHandler } = require('../middleware');
 
 const getAllBooks = asyncHandler(async (req, res) => {
-    const books = await Book.find({});
+    const options = {
+        page: parseInt(req.query.page) || 1,
+        limit: parseInt(req.query.limit) || 10,
+    };
+
+    const books = await Book.paginate({}, options);
     res.status(200).json(books);
 });
 
